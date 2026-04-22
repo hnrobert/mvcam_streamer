@@ -4,7 +4,7 @@ A ROS2 packge for Hikvision USB3.0 industrial camera
 
 ## Usage
 
-```
+```raw
 ros2 launch hik_camera hik_camera.launch.py
 ```
 

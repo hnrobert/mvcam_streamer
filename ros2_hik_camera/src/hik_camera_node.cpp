@@ -2,10 +2,13 @@
 // ROS
 #include <camera_info_manager/camera_info_manager.hpp>
 #include <image_transport/image_transport.hpp>
+#include <opencv2/imgcodecs.hpp>
+#include <opencv2/imgproc.hpp>
 #include <rclcpp/logging.hpp>
 #include <rclcpp/rclcpp.hpp>
 #include <rclcpp/utilities.hpp>
 #include <sensor_msgs/msg/camera_info.hpp>
+#include <sensor_msgs/msg/compressed_image.hpp>
 #include <sensor_msgs/msg/image.hpp>
 
 namespace hik_camera
@@ -41,8 +44,8 @@ public:
     MV_CC_GetImageInfo(camera_handle_, &img_info_);
     image_msg_.data.reserve(img_info_.nHeightMax * img_info_.nWidthMax * 3);
     RCLCPP_INFO(
-      this->get_logger(), "Camera info: max width = %d, max height = %d",
-      img_info_.nWidthMax, img_info_.nHeightMax);
+      this->get_logger(), "Camera info: max width = %d, max height = %d", img_info_.nWidthMax,
+      img_info_.nHeightMax);
 
     // Init convert param
     convert_param_.nWidth = img_info_.nWidthValue;
@@ -52,6 +55,8 @@ public:
     bool use_sensor_data_qos = this->declare_parameter("use_sensor_data_qos", true);
     auto qos = use_sensor_data_qos ? rmw_qos_profile_sensor_data : rmw_qos_profile_default;
     camera_pub_ = image_transport::create_camera_publisher(this, "image_raw", qos);
+    compressed_pub_ = this->create_publisher<sensor_msgs::msg::CompressedImage>(
+      "image_raw/compressed", rclcpp::QoS(rclcpp::KeepLast(10)).best_effort());
     RCLCPP_INFO(this->get_logger(), "Camera publisher created!");
 
     declareParameters();
@@ -109,9 +114,10 @@ public:
             rotated_buffer.resize(image_msg_.width * image_msg_.height * 3);
             unsigned int dst_size = rotated_buffer.size();
 
-            if (rotateImage(
-                  image_msg_.data.data(), image_msg_.data.size(), rotated_buffer.data(), dst_size,
-                  rotation_angle_)) {
+            if (
+              rotateImage(
+                image_msg_.data.data(), image_msg_.data.size(), rotated_buffer.data(), dst_size,
+                rotation_angle_)) {
               // After rotation, update image data
               image_msg_.data.resize(dst_size);
               std::memcpy(image_msg_.data.data(), rotated_buffer.data(), dst_size);
@@ -126,6 +132,12 @@ public:
           camera_info_msg_.height = image_msg_.height;
 
           camera_pub_.publish(image_msg_, camera_info_msg_);
+
+          if (publish_compressed_ && encodeJpeg(image_msg_, compressed_msg_.data)) {
+            compressed_msg_.header = image_msg_.header;
+            compressed_msg_.format = "jpeg";
+            compressed_pub_->publish(compressed_msg_);
+          }
 
           MV_CC_FreeImageBuffer(camera_handle_, &out_frame);
           fail_count_ = 0;
@@ -195,6 +207,16 @@ private:
     rotation_angle_ =
       static_cast<MV_IMG_ROTATION_ANGLE>(this->declare_parameter("rotation_angle", 0, rot_desc));
     RCLCPP_INFO(this->get_logger(), "Rotation angle: %d", static_cast<int>(rotation_angle_));
+
+    // JPEG quality for compressed stream
+    rcl_interfaces::msg::ParameterDescriptor jpeg_quality_desc;
+    jpeg_quality_desc.description = "JPEG quality for image_raw/compressed (1-100)";
+    jpeg_quality_desc.integer_range.resize(1);
+    jpeg_quality_desc.integer_range[0].from_value = 1;
+    jpeg_quality_desc.integer_range[0].to_value = 100;
+    jpeg_quality_desc.integer_range[0].step = 1;
+    jpeg_quality_ = this->declare_parameter("jpeg_quality", jpeg_quality_, jpeg_quality_desc);
+    publish_compressed_ = this->declare_parameter("publish_compressed", publish_compressed_);
   }
 
   rcl_interfaces::msg::SetParametersResult parametersCallback(
@@ -225,6 +247,16 @@ private:
           result.reason =
             "Invalid rotation angle value. Valid values: 0=None, 1=90deg, 2=180deg, 3=270deg";
         }
+      } else if (param.get_name() == "jpeg_quality") {
+        const int quality = param.as_int();
+        if (quality >= 1 && quality <= 100) {
+          jpeg_quality_ = quality;
+        } else {
+          result.successful = false;
+          result.reason = "Invalid jpeg_quality value. Valid range: 1-100";
+        }
+      } else if (param.get_name() == "publish_compressed") {
+        publish_compressed_ = param.as_bool();
       } else {
         result.successful = false;
         result.reason = "Unknown parameter: " + param.get_name();
@@ -276,9 +308,30 @@ private:
     }
   }
 
+  bool encodeJpeg(const sensor_msgs::msg::Image & image, std::vector<uint8_t> & output)
+  {
+    if (image.encoding != "rgb8") {
+      RCLCPP_ERROR_THROTTLE(
+        this->get_logger(), *this->get_clock(), 3000,
+        "Unsupported image encoding for JPEG conversion: %s", image.encoding.c_str());
+      return false;
+    }
+
+    cv::Mat rgb(static_cast<int>(image.height), static_cast<int>(image.width), CV_8UC3);
+    std::memcpy(rgb.data, image.data.data(), image.data.size());
+
+    cv::Mat bgr;
+    cv::cvtColor(rgb, bgr, cv::COLOR_RGB2BGR);
+
+    std::vector<int> params{cv::IMWRITE_JPEG_QUALITY, jpeg_quality_};
+    return cv::imencode(".jpg", bgr, output, params);
+  }
+
   sensor_msgs::msg::Image image_msg_;
+  sensor_msgs::msg::CompressedImage compressed_msg_;
 
   image_transport::CameraPublisher camera_pub_;
+  rclcpp::Publisher<sensor_msgs::msg::CompressedImage>::SharedPtr compressed_pub_;
 
   int nRet = MV_OK;
   void * camera_handle_;
@@ -296,6 +349,8 @@ private:
   OnSetParametersCallbackHandle::SharedPtr params_callback_handle_;
 
   MV_IMG_ROTATION_ANGLE rotation_angle_ = MV_IMAGE_ROTATE_180;
+  int jpeg_quality_ = 85;
+  bool publish_compressed_ = true;
 };
 }  // namespace hik_camera
 

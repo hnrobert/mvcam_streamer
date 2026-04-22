@@ -13,6 +13,7 @@ add_definitions(-Wall -Werror)
 set(CMAKE_EXPORT_COMPILE_COMMANDS ON)
 
 find_package(ament_cmake_auto REQUIRED)
+find_package(OpenCV REQUIRED)
 ament_auto_find_build_dependencies()
 
 ament_auto_add_library(${PROJECT_NAME} SHARED
@@ -27,12 +28,12 @@ if(CMAKE_SYSTEM_PROCESSOR MATCHES "x86_64")
     DIRECTORY /opt/MVS/lib/64
     DESTINATION lib
   )
-# elseif(CMAKE_SYSTEM_PROCESSOR MATCHES "aarch64")
-#   target_link_directories(${PROJECT_NAME} PUBLIC hikSDK/lib/arm64)
-#   install(
-#     DIRECTORY hikSDK/lib/arm64/
-#     DESTINATION lib
-#   )
+  # elseif(CMAKE_SYSTEM_PROCESSOR MATCHES "aarch64")
+  #   target_link_directories(${PROJECT_NAME} PUBLIC hikSDK/lib/arm64)
+  #   install(
+  #     DIRECTORY hikSDK/lib/arm64/
+  #     DESTINATION lib
+  #   )
 else()
   message(FATAL_ERROR "Unsupported host system architecture: ${CMAKE_HOST_SYSTEM_PROCESSOR}!")
 endif()
@@ -43,6 +44,11 @@ target_link_libraries(${PROJECT_NAME}
   MvCameraControl
   MVRender
   MvUsb3vTL
+  ${OpenCV_LIBS}
+)
+
+ament_auto_add_executable(mjpeg_stream_server
+  src/mjpeg_stream_server.cpp
 )
 
 rclcpp_components_register_node(${PROJECT_NAME}
