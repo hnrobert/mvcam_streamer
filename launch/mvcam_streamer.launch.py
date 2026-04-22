@@ -1,6 +1,6 @@
 import os
 
-from ament_index_python.packages import get_package_share_directory, get_package_prefix
+from ament_index_python.packages import get_package_share_directory
 from launch import LaunchDescription
 from launch.actions import DeclareLaunchArgument
 from launch.conditions import IfCondition
@@ -10,9 +10,9 @@ from launch_ros.actions import Node
 
 def generate_launch_description():
     params_file = os.path.join(
-        get_package_share_directory('hik_camera'), 'config', 'camera_params.yaml')
+        get_package_share_directory('mvcam_streamer'), 'config', 'camera_params.yaml')
 
-    camera_info_url = 'package://hik_camera/config/camera_info.yaml'
+    camera_info_url = 'package://mvcam_streamer/config/camera_info.yaml'
 
     return LaunchDescription([
         DeclareLaunchArgument(name='params_file',
@@ -35,8 +35,8 @@ def generate_launch_description():
                               default_value='/stream.mjpg'),
 
         Node(
-            package='hik_camera',
-            executable='hik_camera_node',
+            package='mvcam_streamer',
+            executable='mvcam_streamer_node',
             output='both',
             emulate_tty=True,
             parameters=[LaunchConfiguration('params_file'), {
@@ -48,7 +48,7 @@ def generate_launch_description():
             arguments=['--ros-args', '--log-level', 'info'],
         ),
         Node(
-            package='hik_camera',
+            package='mvcam_streamer',
             executable='mjpeg_stream_server',
             output='both',
             emulate_tty=True,

@@ -3,9 +3,10 @@
 <package format="3">
   <name>mvcam_streamer</name>
   <version>0.0.0</version>
-  <description>hik mv camera</description>
-  <maintainer email="hnrobert@qq.com">nolem</maintainer>
+  <description>mvcam_streamer package for Hikvision industrial camera streaming</description>
+  <maintainer email="hnrobert@qq.com">hnrobert</maintainer>
   <license>TODO: License declaration</license>
+  <url type="repository">https://github.com/hnrobert/mvcam_streamer</url>
 
   <!-- buildtool_depend: dependencies of the build process -->
   <buildtool_depend>ament_cmake</buildtool_depend>

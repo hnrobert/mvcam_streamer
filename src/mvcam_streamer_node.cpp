@@ -11,14 +11,14 @@
 #include <sensor_msgs/msg/compressed_image.hpp>
 #include <sensor_msgs/msg/image.hpp>
 
-namespace hik_camera
+namespace mvcam_streamer
 {
-class HikCameraNode : public rclcpp::Node
+class MvcamStreamerNode : public rclcpp::Node
 {
 public:
-  explicit HikCameraNode(const rclcpp::NodeOptions & options) : Node("hik_camera", options)
+  explicit MvcamStreamerNode(const rclcpp::NodeOptions & options) : Node("mvcam_streamer", options)
   {
-    RCLCPP_INFO(this->get_logger(), "Starting HikCameraNode!");
+    RCLCPP_INFO(this->get_logger(), "Starting MvcamStreamerNode!");
 
     MV_CC_DEVICE_INFO_LIST device_list;
     // enum device
@@ -67,8 +67,8 @@ public:
     camera_name_ = this->declare_parameter("camera_name", "narrow_stereo");
     camera_info_manager_ =
       std::make_unique<camera_info_manager::CameraInfoManager>(this, camera_name_);
-    auto camera_info_url =
-      this->declare_parameter("camera_info_url", "package://hik_camera/config/camera_info.yaml");
+    auto camera_info_url = this->declare_parameter(
+      "camera_info_url", "package://mvcam_streamer/config/camera_info.yaml");
     if (camera_info_manager_->validateURL(camera_info_url)) {
       camera_info_manager_->loadCameraInfo(camera_info_url);
       camera_info_msg_ = camera_info_manager_->getCameraInfo();
@@ -77,7 +77,7 @@ public:
     }
 
     params_callback_handle_ = this->add_on_set_parameters_callback(
-      std::bind(&HikCameraNode::parametersCallback, this, std::placeholders::_1));
+      std::bind(&MvcamStreamerNode::parametersCallback, this, std::placeholders::_1));
 
     capture_thread_ = std::thread{[this]() -> void {
       MV_FRAME_OUT out_frame;
@@ -156,7 +156,7 @@ public:
     }};
   }
 
-  ~HikCameraNode() override
+  ~MvcamStreamerNode() override
   {
     if (capture_thread_.joinable()) {
       capture_thread_.join();
@@ -166,7 +166,7 @@ public:
       MV_CC_CloseDevice(camera_handle_);
       MV_CC_DestroyHandle(&camera_handle_);
     }
-    RCLCPP_INFO(this->get_logger(), "HikCameraNode destroyed!");
+    RCLCPP_INFO(this->get_logger(), "MvcamStreamerNode destroyed!");
   }
 
 private:
@@ -352,8 +352,8 @@ private:
   int jpeg_quality_ = 85;
   bool publish_compressed_ = true;
 };
-}  // namespace hik_camera
+}  // namespace mvcam_streamer
 
 #include "rclcpp_components/register_node_macro.hpp"
 
-RCLCPP_COMPONENTS_REGISTER_NODE(hik_camera::HikCameraNode)
+RCLCPP_COMPONENTS_REGISTER_NODE(mvcam_streamer::MvcamStreamerNode)

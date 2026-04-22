@@ -1,5 +1,5 @@
 cmake_minimum_required(VERSION 3.8)
-project(hik_camera)
+project(mvcam_streamer)
 
 ## Use C++14
 set(CMAKE_CXX_STANDARD 14)
@@ -17,7 +17,7 @@ find_package(OpenCV REQUIRED)
 ament_auto_find_build_dependencies()
 
 ament_auto_add_library(${PROJECT_NAME} SHARED
-  src/hik_camera_node.cpp
+  src/mvcam_streamer_node.cpp
 )
 
 target_include_directories(${PROJECT_NAME} PUBLIC /opt/MVS/include)
@@ -52,7 +52,7 @@ ament_auto_add_executable(mjpeg_stream_server
 )
 
 rclcpp_components_register_node(${PROJECT_NAME}
-  PLUGIN hik_camera::HikCameraNode
+  PLUGIN mvcam_streamer::MvcamStreamerNode
   EXECUTABLE ${PROJECT_NAME}_node
 )
 

@@ -15,7 +15,7 @@
 #include <thread>
 #include <vector>
 
-namespace hik_camera
+namespace mvcam_streamer
 {
 class MjpegStreamServer : public rclcpp::Node
 {
@@ -225,12 +225,12 @@ private:
 
   std::thread server_thread_;
 };
-}  // namespace hik_camera
+}  // namespace mvcam_streamer
 
 int main(int argc, char ** argv)
 {
   rclcpp::init(argc, argv);
-  auto node = std::make_shared<hik_camera::MjpegStreamServer>();
+  auto node = std::make_shared<mvcam_streamer::MjpegStreamServer>();
   rclcpp::spin(node);
   rclcpp::shutdown();
   return 0;
