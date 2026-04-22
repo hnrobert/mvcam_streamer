@@ -37,19 +37,21 @@ def generate_launch_description():
         Node(
             package='mvcam_streamer',
             executable='mvcam_streamer_node',
+            name='hik_camera',
             output='both',
             emulate_tty=True,
-            parameters=[LaunchConfiguration('params_file'), {
+            parameters=[{
                 'camera_info_url': LaunchConfiguration('camera_info_url'),
                 'use_sensor_data_qos': LaunchConfiguration('use_sensor_data_qos'),
                 'publish_compressed': LaunchConfiguration('publish_compressed'),
                 'jpeg_quality': LaunchConfiguration('jpeg_quality'),
-            }],
+            }, LaunchConfiguration('params_file')],
             arguments=['--ros-args', '--log-level', 'info'],
         ),
         Node(
             package='mvcam_streamer',
             executable='mjpeg_stream_server',
+            name='mjpeg_stream_server',
             output='both',
             emulate_tty=True,
             condition=IfCondition(LaunchConfiguration('start_stream_server')),
@@ -58,7 +60,7 @@ def generate_launch_description():
                 'port': LaunchConfiguration('stream_port'),
                 'stream_path': LaunchConfiguration('stream_path'),
                 'input_topic': '/image_raw/compressed',
-            }],
+            }, LaunchConfiguration('params_file')],
             arguments=['--ros-args', '--log-level', 'info'],
         ),
     ])

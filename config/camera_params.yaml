@@ -6,3 +6,13 @@
     gain: 15.0
     rotation_angle: 2
     # Valid values: 0=None, 1=90deg, 2=180deg, 3=270deg
+    publish_compressed: true
+    jpeg_quality: 10
+
+/mjpeg_stream_server:
+  ros__parameters:
+    bind_address: 127.0.0.1
+    port: 8554
+    stream_path: /stream.mjpg
+    input_topic: /image_raw/compressed
+
