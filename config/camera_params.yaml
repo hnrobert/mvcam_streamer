@@ -1,0 +1,8 @@
+/hik_camera:
+  ros__parameters:
+    camera_name: narrow_stereo
+
+    exposure_time: 6000.0
+    gain: 15.0
+    rotation_angle: 2
+    # Valid values: 0=None, 1=90deg, 2=180deg, 3=270deg
