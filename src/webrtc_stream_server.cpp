@@ -18,6 +18,8 @@
 #include <utility>
 #include <vector>
 
+#include <stdexcept>
+
 #include <rclcpp/rclcpp.hpp>
 #include <sensor_msgs/msg/compressed_image.hpp>
 
@@ -342,6 +344,56 @@ static std::optional<GstWebRTCSessionDescription *> parseOfferSdp(const std::str
   return gst_webrtc_session_description_new(GST_WEBRTC_SDP_TYPE_OFFER, sdp);
 }
 
+static GstPad * requestWebrtcSinkPad(GstElement * webrtcbin)
+{
+  if (webrtcbin == nullptr) {
+    return nullptr;
+  }
+
+  GstCaps * rtp_caps = gst_caps_new_simple(
+    "application/x-rtp",
+    "media", G_TYPE_STRING, "video",
+    "encoding-name", G_TYPE_STRING, "VP8",
+    "payload", G_TYPE_INT, 96,
+    "clock-rate", G_TYPE_INT, 90000,
+    nullptr);
+
+  // First try modern convenience API.
+  GstPad * pad = gst_element_request_pad_simple(webrtcbin, "sink_%u");
+  if (pad != nullptr) {
+    gst_caps_unref(rtp_caps);
+    return pad;
+  }
+
+  // Fallback for versions/plugins where request_pad_simple fails unexpectedly.
+  GstElementClass * klass = GST_ELEMENT_GET_CLASS(webrtcbin);
+  if (klass == nullptr) {
+    gst_caps_unref(rtp_caps);
+    return nullptr;
+  }
+
+  GstPadTemplate * templ = gst_element_class_get_pad_template(klass, "sink_%u");
+  if (templ == nullptr) {
+    gst_caps_unref(rtp_caps);
+    return nullptr;
+  }
+
+  pad = gst_element_request_pad(webrtcbin, templ, nullptr, rtp_caps);
+  gst_caps_unref(rtp_caps);
+  return pad;
+}
+
+static GstCaps * makeVp8RtpCaps()
+{
+  return gst_caps_new_simple(
+    "application/x-rtp",
+    "media", G_TYPE_STRING, "video",
+    "encoding-name", G_TYPE_STRING, "VP8",
+    "payload", G_TYPE_INT, 96,
+    "clock-rate", G_TYPE_INT, 90000,
+    nullptr);
+}
+
 }  // namespace
 
 class WebrtcStreamServer : public rclcpp::Node
@@ -413,9 +465,38 @@ public:
   }
 
 private:
+  static bool hasFactory(const char * name)
+  {
+    GstElementFactory * f = gst_element_factory_find(name);
+    if (f == nullptr) {
+      return false;
+    }
+    gst_object_unref(f);
+    return true;
+  }
+
+  void verifyRuntimeWebrtcDeps()
+  {
+    // webrtcbin requires libnice elements at runtime for ICE transport.
+    if (!hasFactory("nicesrc") || !hasFactory("nicesink")) {
+      throw std::runtime_error(
+              "Missing GStreamer libnice runtime elements (nicesrc/nicesink). "
+              "Install package: gstreamer1.0-nice");
+    }
+  }
+
   void initGStreamer()
   {
     std::lock_guard<std::mutex> lock(gst_mutex_);
+
+    verifyRuntimeWebrtcDeps();
+
+    initGStreamerLocked();
+  }
+
+  void initGStreamerLocked()
+  {
+    // Assumes gst_mutex_ is held.
 
     pipeline_ = gst_pipeline_new("mvcam-webrtc-pipeline");
     if (pipeline_ == nullptr) {
@@ -467,10 +548,29 @@ private:
       throw std::runtime_error("Failed to get payloader src pad");
     }
 
-    GstPad * webrtc_sink = gst_element_request_pad_simple(webrtcbin_, "sink_%u");
+    GstCaps * rtp_caps = makeVp8RtpCaps();
+    GstWebRTCRTPTransceiver * transceiver = nullptr;
+    g_signal_emit_by_name(
+      webrtcbin_, "add-transceiver",
+      GST_WEBRTC_RTP_TRANSCEIVER_DIRECTION_SENDONLY,
+      rtp_caps,
+      &transceiver);
+
+    GstPad * webrtc_sink = gst_element_get_static_pad(webrtcbin_, "sink_0");
+    if (webrtc_sink == nullptr) {
+      webrtc_sink = requestWebrtcSinkPad(webrtcbin_);
+    }
+
+    if (transceiver != nullptr) {
+      gst_object_unref(transceiver);
+    }
+    gst_caps_unref(rtp_caps);
+
     if (webrtc_sink == nullptr) {
       gst_object_unref(pay_src);
-      throw std::runtime_error("Failed to request webrtcbin sink pad");
+      throw std::runtime_error(
+              "Failed to request webrtcbin sink pad (sink_%u). "
+              "Check installed GStreamer webrtc plugin compatibility.");
     }
 
     const GstPadLinkReturn link_res = gst_pad_link(pay_src, webrtc_sink);
@@ -489,12 +589,19 @@ private:
 
     // Keep pipeline READY until we get an offer.
     gst_element_set_state(pipeline_, GST_STATE_READY);
+    session_started_ = false;
   }
 
   void shutdownGStreamer()
   {
     std::lock_guard<std::mutex> lock(gst_mutex_);
 
+    shutdownGStreamerLocked();
+  }
+
+  void shutdownGStreamerLocked()
+  {
+    // Assumes gst_mutex_ is held.
     if (pipeline_ != nullptr) {
       gst_element_set_state(pipeline_, GST_STATE_NULL);
       gst_object_unref(pipeline_);
@@ -507,6 +614,8 @@ private:
       std::lock_guard<std::mutex> c_lock(candidate_mutex_);
       pending_candidates_.clear();
     }
+
+    session_started_ = false;
   }
 
   static gboolean onBusMessageStatic(GstBus *, GstMessage * msg, gpointer user_data)
@@ -609,6 +718,11 @@ private:
   std::optional<std::string> handleOfferSdp(const std::string & offer_sdp)
   {
     std::lock_guard<std::mutex> lock(gst_mutex_);
+
+    // Recreate pipeline on every offer for clean reconnects.
+    shutdownGStreamerLocked();
+    initGStreamerLocked();
+
     if (pipeline_ == nullptr || webrtcbin_ == nullptr) {
       return std::nullopt;
     }
@@ -648,6 +762,8 @@ private:
 
     gst_webrtc_session_description_free(answer);
     gst_webrtc_session_description_free(*offer_desc);
+
+    session_started_ = true;
 
     return answer_sdp;
   }
@@ -807,6 +923,7 @@ private:
   GstElement * pipeline_{nullptr};
   GstElement * appsrc_{nullptr};
   GstElement * webrtcbin_{nullptr};
+  bool session_started_{false};
 
   std::mutex candidate_mutex_;
   std::deque<IceCandidate> pending_candidates_;

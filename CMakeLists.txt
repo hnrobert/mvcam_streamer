@@ -29,7 +29,7 @@ if(NOT GST_FOUND)
     "GStreamer (with webrtcbin) not found via pkg-config.\n"
     "Install deps (Ubuntu/Debian example):\n"
     "  sudo apt-get update\n"
-    "  sudo apt-get install -y pkg-config libgstreamer1.0-dev libgstreamer-plugins-base1.0-dev libgstreamer-plugins-bad1.0-dev gstreamer1.0-plugins-good gstreamer1.0-plugins-bad\n"
+    "  sudo apt-get install -y pkg-config libgstreamer1.0-dev libgstreamer-plugins-base1.0-dev libgstreamer-plugins-bad1.0-dev gstreamer1.0-plugins-good gstreamer1.0-plugins-bad gstreamer1.0-nice\n"
   )
 endif()
 ament_auto_find_build_dependencies()

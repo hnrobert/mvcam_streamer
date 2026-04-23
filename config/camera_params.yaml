@@ -9,24 +9,12 @@
     publish_compressed: true
     jpeg_quality: 60
 
-/h264_rtsp_stream_server:
-  ros__parameters:
-    output_mode: udp
-    bind_address: 127.0.0.1
-    port: 8554
-    stream_path: /stream
-    input_topic: /image_raw/compressed
-    bitrate_kbps: 2500
-    gop: 30
-    listen_mode: true
-    restart_on_failure: false
-    max_restart_attempts: 3
-    retry_interval_ms: 10000
-
-/mjpeg_stream_server:
+/webrtc_stream_server:
   ros__parameters:
     bind_address: 0.0.0.0
     port: 8554
-    stream_path: /stream.mjpg
+    base_path: /webrtc
     input_topic: /image_raw/compressed
+    fps: 30
+    stun_server: ""
 
