@@ -1,14 +1,14 @@
 # mvcam_streamer
 
-ROS2 package for Hikvision industrial camera with compressed image publishing and local video streaming.
+ROS2 package for Hikvision industrial camera with compressed image publishing and WebRTC streaming.
 
-Repository: https://github.com/hnrobert/mvcam_streamer
+Repository: <https://github.com/hnrobert/mvcam_streamer>
 
 ## Features
 
 - Publish raw image topic: `/image_raw`
 - Publish JPEG compressed topic: `/image_raw/compressed`
-- Stream MJPEG over local HTTP server: `http://127.0.0.1:8554/stream.mjpg`
+- WebRTC real-time streaming: `http://0.0.0.0:8554/webrtc`
 
 ## Build
 
@@ -23,17 +23,30 @@ source install/setup.bash
 ros2 launch mvcam_streamer mvcam_streamer.launch.py
 ```
 
-## Main Parameters
+## Camera Parameters
 
-- `exposure_time`
-- `gain`
-- `rotation_angle` (0, 1, 2, 3)
-- `publish_compressed` (true/false)
-- `jpeg_quality` (1-100)
+- `exposure_time` - 曝光时间 (default: 6000.0)
+- `gain` - 增益 (default: 15.0)
+- `rotation_angle` - 旋转角度: 0=None, 1=90deg, 2=180deg, 3=270deg (default: 2)
+- `publish_compressed` - 是否发布压缩图像 (default: true)
+- `jpeg_quality` - JPEG质量 1-100 (default: 60)
 
-## Stream Parameters
+## WebRTC Stream Parameters
 
-- `start_stream_server` (true/false)
-- `stream_bind_address` (default: 127.0.0.1)
-- `stream_port` (default: 8554)
-- `stream_path` (default: /stream.mjpg)
+- `start_webrtc` - 启动WebRTC服务器 (default: true)
+- `webrtc_bind_address` - 绑定地址 (default: 0.0.0.0)
+- `webrtc_port` - 端口 (default: 8554)
+- `webrtc_base_path` - 基础路径 (default: /webrtc)
+- `input_topic` - 输入话题 (default: /image_raw/compressed)
+- `fps` - 帧率 (default: 30)
+- `stun_server` - STUN服务器 (可选, 例如: stun://stun.l.google.com:19302)
+
+## 依赖项
+
+WebRTC流需要安装GStreamer及相关插件：
+
+```bash
+sudo apt-get install gstreamer1.0-tools gstreamer1.0-plugins-base \
+  gstreamer1.0-plugins-good gstreamer1.0-plugins-bad \
+  gstreamer1.0-nice libgstreamer1.0-dev
+```
