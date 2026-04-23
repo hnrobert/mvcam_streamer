@@ -23,13 +23,13 @@ public:
   MjpegStreamServer() : Node("mjpeg_stream_server")
   {
     bind_address_ = this->declare_parameter("bind_address", "127.0.0.1");
-    port_ = this->declare_parameter("port", 8080);
+    port_ = this->declare_parameter("port", 8554);
     stream_path_ = this->declare_parameter("stream_path", "/stream.mjpg");
     input_topic_ = this->declare_parameter("input_topic", "/image_raw/compressed");
 
     if (port_ <= 0 || port_ > 65535) {
-      RCLCPP_WARN(this->get_logger(), "Invalid port %d, fallback to 8080", port_);
-      port_ = 8080;
+      RCLCPP_WARN(this->get_logger(), "Invalid port %d, fallback to 8554", port_);
+      port_ = 8554;
     }
 
     sub_ = this->create_subscription<sensor_msgs::msg::CompressedImage>(
@@ -155,7 +155,14 @@ private:
     const std::string expected = "GET " + stream_path_ + " ";
     if (req.find(expected) != 0) {
       const std::string body =
-        "<html><body><h3>MJPEG Server</h3><p>Open " + stream_path_ + "</p></body></html>";
+        "<!doctype html><html><head><meta charset=\"utf-8\"><title>Camera Preview</title>"
+        "<style>body{margin:0;background:#111;color:#eee;font-family:sans-serif}"
+        "header{padding:12px 16px;font-size:14px;color:#bbb}"
+        "main{display:flex;justify-content:center;align-items:center;height:calc(100vh - 44px)}"
+        "img{max-width:100vw;max-height:calc(100vh - 44px);object-fit:contain}</style>"
+        "</head><body><header>Live Preview: " + stream_path_ +
+        "</header><main><img src=\"" + stream_path_ +
+        "\" alt=\"live stream\"></main></body></html>";
       std::ostringstream oss;
       oss << "HTTP/1.1 200 OK\r\n"
           << "Content-Type: text/html\r\n"

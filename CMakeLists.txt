@@ -51,6 +51,10 @@ ament_auto_add_executable(mjpeg_stream_server
   src/mjpeg_stream_server.cpp
 )
 
+ament_auto_add_executable(h264_rtsp_stream_server
+  src/h264_rtsp_stream_server.cpp
+)
+
 rclcpp_components_register_node(${PROJECT_NAME}
   PLUGIN mvcam_streamer::MvcamStreamerNode
   EXECUTABLE ${PROJECT_NAME}_node

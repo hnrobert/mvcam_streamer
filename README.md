@@ -8,7 +8,7 @@ Repository: https://github.com/hnrobert/mvcam_streamer
 
 - Publish raw image topic: `/image_raw`
 - Publish JPEG compressed topic: `/image_raw/compressed`
-- Stream MJPEG over local HTTP server: `http://127.0.0.1:8080/stream.mjpg`
+- Stream MJPEG over local HTTP server: `http://127.0.0.1:8554/stream.mjpg`
 
 ## Build
 
@@ -35,5 +35,5 @@ ros2 launch mvcam_streamer mvcam_streamer.launch.py
 
 - `start_stream_server` (true/false)
 - `stream_bind_address` (default: 127.0.0.1)
-- `stream_port` (default: 8080)
+- `stream_port` (default: 8554)
 - `stream_path` (default: /stream.mjpg)
