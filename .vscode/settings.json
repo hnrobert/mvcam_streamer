@@ -1,0 +1,24 @@
+{
+    "cSpell.words": [
+        "gboolean",
+        "gchar",
+        "gpointer",
+        "gstreamer",
+        "guint",
+        "jpegdec",
+        "klass",
+        "libnice",
+        "mvcam",
+        "nicesink",
+        "nicesrc",
+        "onconnectionstatechange",
+        "onicecandidate",
+        "ontrack",
+        "rclcpp",
+        "RCLCPP",
+        "recvonly",
+        "rtpvp",
+        "WEBRTC",
+        "webrtcbin"
+    ]
+}
