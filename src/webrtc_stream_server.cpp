@@ -571,8 +571,8 @@ private:
     gst_bus_add_watch(bus, &WebrtcStreamServer::onBusMessageStatic, this);
     gst_object_unref(bus);
 
-    // Keep pipeline READY until we get an offer.
-    gst_element_set_state(pipeline_, GST_STATE_READY);
+    // Start pipeline immediately so frames flow continuously
+    gst_element_set_state(pipeline_, GST_STATE_PLAYING);
     session_started_ = false;
   }
 
@@ -670,13 +670,6 @@ private:
       return;
     }
 
-    // Allow pushing frames in READY state so they're available when pipeline starts
-    GstState state = GST_STATE_NULL;
-    gst_element_get_state(pipeline_, &state, nullptr, 0);
-    if (state == GST_STATE_NULL) {
-      return;
-    }
-
     GstBuffer * buf = gst_buffer_new_allocate(nullptr, jpeg.size(), nullptr);
     if (buf == nullptr) {
       return;
@@ -703,16 +696,11 @@ private:
   {
     std::lock_guard<std::mutex> lock(gst_mutex_);
 
-    // Recreate pipeline on every offer for clean reconnects.
-    shutdownGStreamerLocked();
-    initGStreamerLocked();
-
     if (pipeline_ == nullptr || webrtcbin_ == nullptr) {
       return std::nullopt;
     }
 
-    // Start (or restart) streaming state.
-    gst_element_set_state(pipeline_, GST_STATE_PLAYING);
+    // Pipeline is already PLAYING, no need to recreate or change state
 
     auto offer_desc = parseOfferSdp(offer_sdp);
     if (!offer_desc) {
