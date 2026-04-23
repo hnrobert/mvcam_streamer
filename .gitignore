@@ -5,5 +5,4 @@ build/
 **/__pycache__/
 **/log
 
-.vscode
 $(ALLUSERSPROFILE)/
