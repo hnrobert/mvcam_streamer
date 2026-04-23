@@ -61,6 +61,15 @@ public:
   ~MjpegStreamServer() override
   {
     running_ = false;
+
+    {
+      std::lock_guard<std::mutex> lock(client_fd_mutex_);
+      if (active_client_fd_ >= 0) {
+        close(active_client_fd_);
+        active_client_fd_ = -1;
+      }
+    }
+
     if (listen_fd_ >= 0) {
       close(listen_fd_);
       listen_fd_ = -1;
@@ -73,11 +82,20 @@ public:
   }
 
 private:
+  static void setSocketTimeout(int fd, int timeout_ms)
+  {
+    timeval tv;
+    tv.tv_sec = timeout_ms / 1000;
+    tv.tv_usec = (timeout_ms % 1000) * 1000;
+    setsockopt(fd, SOL_SOCKET, SO_RCVTIMEO, &tv, sizeof(tv));
+    setsockopt(fd, SOL_SOCKET, SO_SNDTIMEO, &tv, sizeof(tv));
+  }
+
   static bool sendAll(int fd, const uint8_t * data, size_t size)
   {
     size_t sent = 0;
     while (sent < size) {
-      const ssize_t n = send(fd, data + sent, size - sent, 0);
+      const ssize_t n = send(fd, data + sent, size - sent, MSG_NOSIGNAL);
       if (n <= 0) {
         return false;
       }
@@ -101,6 +119,7 @@ private:
 
     int reuse = 1;
     setsockopt(listen_fd_, SOL_SOCKET, SO_REUSEADDR, &reuse, sizeof(reuse));
+    setSocketTimeout(listen_fd_, 250);
 
     sockaddr_in addr;
     std::memset(&addr, 0, sizeof(addr));
@@ -126,10 +145,18 @@ private:
       socklen_t client_len = sizeof(client_addr);
       int client_fd = accept(listen_fd_, reinterpret_cast<sockaddr *>(&client_addr), &client_len);
       if (client_fd < 0) {
-        if (running_) {
-          RCLCPP_WARN(this->get_logger(), "Accept failed");
+        if (running_ && rclcpp::ok()) {
+          RCLCPP_WARN_THROTTLE(
+            this->get_logger(), *this->get_clock(), 3000,
+            "Accept failed or timed out while waiting for client");
         }
         continue;
+      }
+
+      setSocketTimeout(client_fd, 250);
+      {
+        std::lock_guard<std::mutex> lock(client_fd_mutex_);
+        active_client_fd_ = client_fd;
       }
 
 #ifdef __APPLE__
@@ -139,6 +166,13 @@ private:
 
       handleClient(client_fd);
       close(client_fd);
+
+      {
+        std::lock_guard<std::mutex> lock(client_fd_mutex_);
+        if (active_client_fd_ == client_fd) {
+          active_client_fd_ = -1;
+        }
+      }
     }
   }
 
@@ -223,6 +257,8 @@ private:
 
   std::atomic<bool> running_{true};
   int listen_fd_{-1};
+  int active_client_fd_{-1};
+  std::mutex client_fd_mutex_;
 
   rclcpp::Subscription<sensor_msgs::msg::CompressedImage>::SharedPtr sub_;
 
