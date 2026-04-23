@@ -6,3 +6,4 @@ build/
 **/log
 
 $(ALLUSERSPROFILE)/
+settings.local.json

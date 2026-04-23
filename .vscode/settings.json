@@ -1,5 +1,6 @@
 {
     "cSpell.words": [
+        "ALLUSERSPROFILE",
         "gboolean",
         "gchar",
         "gpointer",
@@ -14,6 +15,7 @@
         "onconnectionstatechange",
         "onicecandidate",
         "ontrack",
+        "pycache",
         "rclcpp",
         "RCLCPP",
         "recvonly",
