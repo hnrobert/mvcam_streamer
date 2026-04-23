@@ -249,20 +249,17 @@ static std::string httpNoContent(int code, const std::string & reason)
   return oss.str();
 }
 
-static std::string indexHtml(const std::string & base_path)
+static std::string webrtcFullscreenHtml(const std::string & base_path)
 {
-  // Minimal single-page WebRTC viewer. Uses POST /offer and polling /candidates.
+  // Full-screen WebRTC viewer. Uses POST /offer and polling /candidates.
   std::ostringstream oss;
   oss << "<!doctype html><html><head><meta charset=\"utf-8\">"
       << "<meta name=\"viewport\" content=\"width=device-width,initial-scale=1\">"
-      << "<title>WebRTC Preview</title>"
-      << "<style>body{margin:0;background:#111;color:#eee;font-family:sans-serif}"
-      << "header{padding:12px 16px;font-size:14px;color:#bbb}"
-      << "main{display:flex;justify-content:center;align-items:center;height:calc(100vh - 44px)}"
-      << "video{max-width:100vw;max-height:calc(100vh - 44px);background:#000}"
+      << "<title>WebRTC Stream</title>"
+      << "<style>html,body{width:100%;height:100%;margin:0;background:#000}"
+      << "#v{width:100vw;height:100vh;object-fit:contain;background:#000;display:block}"
       << "</style></head><body>"
-      << "<header>WebRTC Preview: " << base_path << "</header>"
-      << "<main><video id=\"v\" autoplay playsinline controls muted></video></main>"
+      << "<video id=\"v\" autoplay playsinline controls muted></video>"
       << "<script>\n"
       << "(async ()=>{\n"
       << "  const base='" << base_path << "';\n"
@@ -307,6 +304,20 @@ static std::string indexHtml(const std::string & base_path)
       << "  };\n"
       << "})();\n"
       << "</script></body></html>";
+  return oss.str();
+}
+
+static std::string landingHtml(const std::string & base_path)
+{
+  std::ostringstream oss;
+  oss << "<!doctype html><html><head><meta charset=\"utf-8\">"
+      << "<meta name=\"viewport\" content=\"width=device-width,initial-scale=1\">"
+      << "<title>Mvcam Stream</title>"
+      << "<style>body{margin:0;min-height:100vh;display:grid;place-items:center;background:#101216;color:#e8ebf0;font-family:sans-serif}"
+      << "a{font-size:20px;color:#7dc3ff;text-decoration:none;padding:12px 18px;border:1px solid #2a3442;border-radius:10px}"
+      << "a:hover{background:#172130}</style></head><body>"
+      << "<a href=\"" << base_path << "\">Open Full-Screen WebRTC Stream</a>"
+      << "</body></html>";
   return oss.str();
 }
 
@@ -381,17 +392,6 @@ static GstPad * requestWebrtcSinkPad(GstElement * webrtcbin)
   pad = gst_element_request_pad(webrtcbin, templ, nullptr, rtp_caps);
   gst_caps_unref(rtp_caps);
   return pad;
-}
-
-static GstCaps * makeVp8RtpCaps()
-{
-  return gst_caps_new_simple(
-    "application/x-rtp",
-    "media", G_TYPE_STRING, "video",
-    "encoding-name", G_TYPE_STRING, "VP8",
-    "payload", G_TYPE_INT, 96,
-    "clock-rate", G_TYPE_INT, 90000,
-    nullptr);
 }
 
 }  // namespace
@@ -548,23 +548,7 @@ private:
       throw std::runtime_error("Failed to get payloader src pad");
     }
 
-    GstCaps * rtp_caps = makeVp8RtpCaps();
-    GstWebRTCRTPTransceiver * transceiver = nullptr;
-    g_signal_emit_by_name(
-      webrtcbin_, "add-transceiver",
-      GST_WEBRTC_RTP_TRANSCEIVER_DIRECTION_SENDONLY,
-      rtp_caps,
-      &transceiver);
-
-    GstPad * webrtc_sink = gst_element_get_static_pad(webrtcbin_, "sink_0");
-    if (webrtc_sink == nullptr) {
-      webrtc_sink = requestWebrtcSinkPad(webrtcbin_);
-    }
-
-    if (transceiver != nullptr) {
-      gst_object_unref(transceiver);
-    }
-    gst_caps_unref(rtp_caps);
+    GstPad * webrtc_sink = requestWebrtcSinkPad(webrtcbin_);
 
     if (webrtc_sink == nullptr) {
       gst_object_unref(pay_src);
@@ -857,8 +841,14 @@ private:
     const std::string cand_post_path = base_path_ + "/candidate";
     const std::string cand_get_path = base_path_ + "/candidates";
 
-    if (req.method == "GET" && (req.path == base_path_ || req.path == "/")) {
-      const std::string body = indexHtml(base_path_);
+    if (req.method == "GET" && req.path == base_path_) {
+      const std::string body = webrtcFullscreenHtml(base_path_);
+      sendAll(client_fd, httpResponse(200, "OK", "text/html; charset=utf-8", body));
+      return;
+    }
+
+    if (req.method == "GET" && (req.path == "/" || req.path == "/index.html")) {
+      const std::string body = landingHtml(base_path_);
       sendAll(client_fd, httpResponse(200, "OK", "text/html; charset=utf-8", body));
       return;
     }
