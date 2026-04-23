@@ -670,10 +670,10 @@ private:
       return;
     }
 
-    // If not negotiated/streaming yet, drop frames.
+    // Allow pushing frames in READY state so they're available when pipeline starts
     GstState state = GST_STATE_NULL;
     gst_element_get_state(pipeline_, &state, nullptr, 0);
-    if (state != GST_STATE_PLAYING && state != GST_STATE_PAUSED) {
+    if (state == GST_STATE_NULL) {
       return;
     }
 
