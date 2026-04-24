@@ -235,6 +235,9 @@ static std::string httpResponse(
   oss << "Cache-Control: no-cache\r\n";
   oss << "Pragma: no-cache\r\n";
   oss << "Content-Type: " << content_type << "\r\n";
+  oss << "Access-Control-Allow-Origin: *\r\n";
+  oss << "Access-Control-Allow-Methods: GET, POST, OPTIONS\r\n";
+  oss << "Access-Control-Allow-Headers: Content-Type\r\n";
   oss << "Content-Length: " << body.size() << "\r\n\r\n";
   oss << body;
   return oss.str();
@@ -245,6 +248,9 @@ static std::string httpNoContent(int code, const std::string & reason)
   std::ostringstream oss;
   oss << "HTTP/1.1 " << code << ' ' << reason << "\r\n";
   oss << "Connection: close\r\n";
+  oss << "Access-Control-Allow-Origin: *\r\n";
+  oss << "Access-Control-Allow-Methods: GET, POST, OPTIONS\r\n";
+  oss << "Access-Control-Allow-Headers: Content-Type\r\n";
   oss << "Content-Length: 0\r\n\r\n";
   return oss.str();
 }
@@ -530,7 +536,7 @@ private:
     g_object_set(q1, "leaky", 2 /* downstream */, "max-size-buffers", 2, nullptr);
     g_object_set(q2, "leaky", 2 /* downstream */, "max-size-buffers", 2, nullptr);
 
-    g_object_set(vp8enc, "deadline", 1, "keyframe-max-dist", 30, nullptr);
+    g_object_set(vp8enc, "deadline", 1, "keyframe-max-dist", 10, "keyframe-mode", 1, nullptr);
     g_object_set(pay, "pt", 96, nullptr);
 
     if (!stun_server_.empty()) {
@@ -665,9 +671,14 @@ private:
 
   void pushJpegToAppSrc(const std::vector<uint8_t> & jpeg)
   {
+    static int frame_count = 0;
+    frame_count++;
     std::lock_guard<std::mutex> lock(gst_mutex_);
-    if (pipeline_ == nullptr || appsrc_ == nullptr) {
+    if (pipeline_ == nullptr || appsrc_ == nullptr || !session_started_) {
       return;
+    }
+    if (frame_count % 30 == 0) {
+      RCLCPP_INFO(this->get_logger(), "Pushing frame %d, size=%zu", frame_count, jpeg.size());
     }
 
     GstBuffer * buf = gst_buffer_new_allocate(nullptr, jpeg.size(), nullptr);
@@ -735,6 +746,7 @@ private:
     gst_webrtc_session_description_free(answer);
     gst_webrtc_session_description_free(*offer_desc);
 
+    RCLCPP_INFO(this->get_logger(), "Session started, pipeline ready for frames");
     session_started_ = true;
 
     return answer_sdp;
@@ -824,6 +836,13 @@ private:
     if (!parseHttpRequest(client_fd, &req)) {
       return;
     }
+
+    // Handle CORS preflight
+    if (req.method == "OPTIONS") {
+      sendAll(client_fd, httpNoContent(204, "No Content"));
+      return;
+    }
+
 
     const std::string offer_path = base_path_ + "/offer";
     const std::string cand_post_path = base_path_ + "/candidate";
